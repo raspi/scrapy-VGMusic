@@ -1,7 +1,8 @@
 import os
 from datetime import datetime
-from urllib.parse import urlsplit, urlencode, SplitResult
 from urllib.parse import parse_qsl as queryparse
+from urllib.parse import urlsplit, urlencode, SplitResult
+
 import scrapy
 
 from vgmusic.items import Tune
@@ -23,11 +24,17 @@ class SiteSpider(scrapy.Spider):
 
 class NewFilesSpider(SiteSpider):
     name = 'new'
+    page_limit: int = 0
 
-    def __init__(self):
+    def __init__(self, limit: int = 0):
         self.start_urls = [
             'https://vgmusic.com/new-files/index.php?page=1&s1=date&sd1=1',
         ]
+
+        if limit == "" or limit is None:
+            limit = 0
+
+        self.page_limit = int(limit)
 
     def parse(self, response: scrapy.http.Response):
         """
@@ -35,22 +42,6 @@ class NewFilesSpider(SiteSpider):
         :param response:
         :return:
         """
-
-        u: SplitResult = urlsplit(response.url)
-        q: dict = dict(queryparse(u.query))
-
-        max_page = max(list(map(int, response.xpath(
-            "/html/body/table/tr/td[@class='button']/form/input[@name='page']/@value"
-        ).getall())))
-        current_page = int(q['page'])
-
-        if current_page < max_page:
-            # Call next page
-            q['page'] = str(current_page + 1)
-            yield scrapy.Request(
-                response.urljoin("?" + urlencode(q)),
-                callback=self.parse,
-            )
 
         for row in response.xpath("/html/body/table[@width='100%']/tr[@class='newfiles']"):
             # Iterate through uploaded files
@@ -90,6 +81,27 @@ class NewFilesSpider(SiteSpider):
                         data=None,
                     ),
                 },
+            )
+
+        # Fetch next page
+        u: SplitResult = urlsplit(response.url)
+        q: dict = dict(queryparse(u.query))
+
+        max_page: int = max(list(map(int, response.xpath(
+            "/html/body/table/tr/td[@class='button']/form/input[@name='page']/@value"
+        ).getall())))
+        current_page: int = int(q['page'])
+
+        if current_page < max_page:
+            # Call next page
+            q['page'] = str(current_page + 1)
+
+            if self.page_limit != 0 and current_page > self.page_limit:
+                return
+
+            yield scrapy.Request(
+                response.urljoin("?" + urlencode(q)),
+                callback=self.parse,
             )
 
     def dl_midi(self, response: scrapy.http.Response):
