@@ -56,11 +56,17 @@ class NewFilesSpider(SiteSpider):
             # Iterate through uploaded files
             link = row.xpath("./td[4]/a/@href").get()
             song = row.xpath("./td[4]/a/text()").get()
+            if song == "":
+                song = None
+
             if song is None:
                 # Use file name
                 song = os.path.basename(urlsplit(link).path)
 
             sequencer = row.xpath("./td[5]/text()").get()
+            if sequencer == "":
+                sequencer = None
+
             if sequencer is None:
                 sequencer = "Unknown"
 
